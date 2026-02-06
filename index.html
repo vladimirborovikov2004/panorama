@@ -7,7 +7,8 @@
 <body>
 <div id="viewer"></div>
 
-<script src="https://cdn.jsdelivr.net/npm/three@0.167.1/build/three.min.js"></script>
+<!-- Библиотека three.js (работает из РФ!) -->
+<script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
 <script>
 const container = document.getElementById('viewer');
 const scene = new THREE.Scene();
@@ -18,30 +19,33 @@ container.appendChild(renderer.domElement);
 
 const geometry = new THREE.SphereGeometry(500, 60, 40);
 geometry.scale(-1, 1, 1);
+
 const texture = new THREE.TextureLoader().load('./IMG_20181020_183652_00_012.jpg');
 const material = new THREE.MeshBasicMaterial({map: texture});
 const mesh = new THREE.Mesh(geometry, material);
 scene.add(mesh);
 
 let lon = 0, lat = 0, isUserInteracting = false;
-let onPointerDownPointerX = 0, onPointerDownPointerY = 0;
-let onPointerDownLon = 0, onPointerDownLat = 0;
 
 container.addEventListener('mousedown', e => {
   isUserInteracting = true;
-  onPointerDownPointerX = e.clientX;
-  onPointerDownPointerY = e.clientY;
-  onPointerDownLon = lon;
-  onPointerDownLat = lat;
+  const startX = e.clientX, startY = e.clientY;
+  const startLon = lon, startLat = lat;
+  
+  const onMove = e => {
+    lon = startLon + (startX - e.clientX) * 0.1;
+    lat = startLat + (e.clientY - startY) * 0.1;
+  };
+  
+  const onUp = () => {
+    isUserInteracting = false;
+    container.removeEventListener('mousemove', onMove);
+    container.removeEventListener('mouseup', onUp);
+  };
+  
+  container.addEventListener('mousemove', onMove);
+  container.addEventListener('mouseup', onUp);
 });
-
-container.addEventListener('mousemove', e => {
-  if (!isUserInteracting) return;
-  lon = (onPointerDownPointerX - e.clientX) * 0.1 + onPointerDownLon;
-  lat = (e.clientY - onPointerDownPointerY) * 0.1 + onPointerDownLat;
-});
-
-container.addEventListener('mouseup', () => isUserInteracting = false);
 
 function animate() {
   requestAnimationFrame(animate);
