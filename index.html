@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Панорама - Владимир Боровиков</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            min-height: 100vh; 
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+        .container {
+            width: 1140px;
+            height: 640px;
+            max-width: 95vw;
+            max-height: 85vh;
+            position: relative;
+            overflow: hidden;
+            border-radius: 12px;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+        .viewer {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            overflow: hidden;
+            background: #000;
+        }
+        #panorama {
+            height: 100%;
+            position: absolute;
+            left: 0;
+            top: 0;
+            cursor: grab;
+            transition: transform 0.05s linear;
+            will-change: transform;
+        }
+        #panorama:active {
+            cursor: grabbing;
+        }
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 18px;
+            background: rgba(0,0,0,0.7);
+            padding: 15px 30px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .controls {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 10;
+        }
+        .btn {
+            width: 45px;
+            height: 45px;
+            background: rgba(0,0,0,0.8);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            backdrop-filter: blur(10px);
+        }
+        .btn:hover {
+            background: rgba(0,0,0,0.9);
+            transform: scale(1.1);
+        }
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 10px;
+            font-size: 14px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            max-width: 300px;
+        }
+        .drag-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            color: #ff6b6b;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            border: 2px solid #ff6b6b;
+            max-width: 500px;
+        }
+        .error h3 {
+            margin-bottom: 10px;
+            color: #ff8e8e;
+        }
+        .error-code {
+            font-family: monospace;
+            background: #222;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        .logo {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            color: white;
+            font-size: 14px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="viewer" id="viewer">
+            <img id="panorama" src="" alt="Панорама Владимир Боровиков">
+            <div class="loading" id="loading">
+                <div class="spinner"></div>
+                Загрузка панорамы...
+            </div>
+            <div class="drag-hint" id="dragHint">← Перетаскивайте для вращения →</div>
+            <div class="error" id="error">
+                <h3>⚠ Ошибка загрузки</h3>
+                <div id="errorMessage"></div>
+                <div class="error-code" id="errorUrl"></div>
+                <button onclick="window.location.reload()" style="margin-top: 15px; padding: 8px 20px; background: #ff6b6b; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                    Перезагрузить
+                </button>
+            </div>
+        </div>
+        
+        <div class="info-panel">
+            📷 Панорама: <strong>IMG_20181020_183652_00_012</strong><br>
+            🔒 Зум: <span style="color: #4CAF50;">заблокирован</span><br>
+            🖱️ Управление: перетаскивание
+        </div>
+        
+        <div class="logo">GitHub: vladimirborovikov2004</div>
+        
+        <div class="controls">
+            <button class="btn" id="btnLeft" title="Влево">←</button>
+            <button class="btn" id="btnRight" title="Вправо">→</button>
+            <button class="btn" id="btnReset" title="Сбросить">↺</button>
+            <button class="btn" id="btnFullscreen" title="Полный экран">⛶</button>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // ВАША ПАНОРАМА С GITHUB
+        // ============================================
+        const PANORAMA_URL = 'https://raw.githubusercontent.com/vladimirborovikov2004/panorama/f910e5efa350d73c12ac26387b07132e8d0982f0/IMG_20181020_183652_00_012.jpg';
+        // ============================================
+        
+        // Элементы DOM
+        const panorama = document.getElementById('panorama');
+        const viewer = document.getElementById('viewer');
+        const loading = document.getElementById('loading');
+        const dragHint = document.getElementById('dragHint');
+        const error = document.getElementById('error');
+        const errorMessage = document.getElementById('errorMessage');
+        const errorUrl = document.getElementById('errorUrl');
+        
+        // Переменные состояния
+        let isDragging = false;
+        let startX = 0;
+        let currentPosition = 0;
+        let imageWidth = 0;
+        let viewerWidth = 0;
+        let isLoaded = false;
+        
+        // Загрузка панорамы
+        async function loadPanorama() {
+            console.log('Загрузка панорамы:', PANORAMA_URL);
+            
+            try {
+                // Проверяем доступность URL
+                const testResponse = await fetch(PANORAMA_URL, { 
+                    method: 'HEAD',
+                    mode: 'cors'
+                });
+                
+                if (!testResponse.ok) {
+                    throw new Error(`Сервер вернул статус: ${testResponse.status}`);
+                }
+                
+                // Загружаем изображение
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    
+                    img.crossOrigin = 'anonymous'; // Для CORS
+                    
+                    img.onload = () => {
+                        console.log('Изображение загружено:', img.width, 'x', img.height);
+                        
+                        imageWidth = img.width;
+                        viewerWidth = viewer.offsetWidth;
+                        
+                        // Устанавливаем изображение
+                        panorama.src = PANORAMA_URL;
+                        panorama.style.width = `${imageWidth}px`;
+                        
+                        // Начальная позиция (центр)
+                        currentPosition = -(imageWidth - viewerWidth) / 2;
+                        updatePosition();
+                        
+                        // Скрываем загрузку
+                        setTimeout(() => {
+                            loading.style.opacity = '0';
+                            setTimeout(() => {
+                                loading.style.display = 'none';
+                                panorama.style.opacity = '1';
+                                isLoaded = true;
+                                
+                                // Скрываем подсказку через 5 секунд
+                                setTimeout(() => {
+                                    dragHint.style.opacity = '0';
+                                    setTimeout(() => dragHint.style.display = 'none', 500);
+                                }, 5000);
+                            }, 300);
+                        }, 500);
+                        
+                        resolve();
+                    };
+                    
+                    img.onerror = (e) => {
+                        console.error('Ошибка загрузки изображения:', e);
+                        reject(new Error('Не удалось загрузить изображение. Проверьте URL и доступность файла.'));
+                    };
+                    
+                    // Добавляем timestamp для обхода кэша
+                    img.src = PANORAMA_URL + '?t=' + Date.now();
+                });
+                
+            } catch (err) {
+                showError(err.message);
+                console.error('Ошибка:', err);
+            }
+        }
+        
+        // Обновление позиции панорамы
+        function updatePosition() {
+            const maxPos = 0;
+            const minPos = -(imageWidth - viewerWidth);
+            
+            // Ограничиваем движение
+            currentPosition = Math.max(minPos, Math.min(maxPos, currentPosition));
+            
+            panorama.style.transform = `translateX(${currentPosition}px)`;
+        }
+        
+        // Показать ошибку
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorUrl.textContent = PANORAMA_URL;
+            error.style.display = 'block';
+            loading.style.display = 'none';
+            dragHint.style.display = 'none';
+        }
+        
+        // ========== ОБРАБОТЧИКИ СОБЫТИЙ ==========
+        
+        // Мышь
+        viewer.addEventListener('mousedown', (e) => {
+            if (!isLoaded) return;
+            
+            isDragging = true;
+            startX = e.clientX;
+            panorama.style.cursor = 'grabbing';
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging || !isLoaded) return;
+            
+            const deltaX = e.clientX - startX;
+            currentPosition += deltaX * 0.7; // Чувствительность
+            updatePosition();
+            
+            startX = e.clientX;
+        });
+        
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+            if (isLoaded) panorama.style.cursor = 'grab';
+        });
+        
+        // Касания (мобильные)
+        viewer.addEventListener('touchstart', (e) => {
+            if (!isLoaded || e.touches.length !== 1) return;
+            
+            e.preventDefault();
+            isDragging = true;
+            startX = e.touches[0].clientX;
+        });
+        
+        document.addEventListener('touchmove', (e) => {
+            if (!isDragging || !isLoaded || e.touches.length !== 1) return;
+            
+            e.preventDefault();
+            const deltaX = e.touches[0].clientX - startX;
+            currentPosition += deltaX;
+            updatePosition();
+            
+            startX = e.touches[0].clientX;
+        });
+        
+        document.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+        
+        // Кнопки управления
+        document.getElementById('btnLeft').addEventListener('click', () => {
+            if (!isLoaded) return;
+            currentPosition += 80;
+            updatePosition();
+        });
+        
+        document.getElementById('btnRight').addEventListener('click', () => {
+            if (!isLoaded) return;
+            currentPosition -= 80;
+            updatePosition();
+        });
+        
+        document.getElementById('btnReset').addEventListener('click', () => {
+            if (!isLoaded) return;
+            currentPosition = -(imageWidth - viewerWidth) / 2;
+            updatePosition();
+        });
+        
+        document.getElementById('btnFullscreen').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.querySelector('.container').requestFullscreen().catch(console.log);
+            } else {
+                document.exitFullscreen();
+            }
+        });
+        
+        // ========== БЛОКИРОВКА ЗУМА ==========
+        
+        // Колесико мыши
+        document.addEventListener('wheel', (e) => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+            }
+        }, { passive: false });
+        
+        // Сочетания клавиш (Ctrl+Plus, Ctrl+Minus, Ctrl+0)
+        document.addEventListener('keydown', (e) => {
+            if (e.ctrlKey && (e.key === '+' || e.key === '-' || e.key === '0' || e.key === '=')) {
+                e.preventDefault();
+                return false;
+            }
+        });
+        
+        // Жесты масштабирования (для мобильных)
+        document.addEventListener('gesturestart', (e) => e.preventDefault());
+        document.addEventListener('gesturechange', (e) => e.preventDefault());
+        document.addEventListener('gestureend', (e) => e.preventDefault());
+        
+        // Контекстное меню
+        panorama.addEventListener('contextmenu', (e) => e.preventDefault());
+        
+        // ========== ИНИЦИАЛИЗАЦИЯ ==========
+        
+        // Загрузка при готовности DOM
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPanorama();
+            
+            // Обновление при изменении размера окна
+            window.addEventListener('resize', () => {
+                viewerWidth = viewer.offsetWidth;
+                if (isLoaded) updatePosition();
+            });
+            
+            // Автоматическое обновление каждые 5 минут (на случай проблем с кэшем)
+            setInterval(() => {
+                if (isLoaded && document.visibilityState === 'visible') {
+                    console.log('Авто-обновление изображения');
+                    panorama.src = PANORAMA_URL + '?t=' + Date.now();
+                }
+            }, 300000);
+        });
+        
+        // Помощь для отладки
+        window.debugPanorama = {
+            getState: () => ({
+                loaded: isLoaded,
+                position: currentPosition,
+                imageWidth: imageWidth,
+                viewerWidth: viewerWidth,
+                url: PANORAMA_URL
+            }),
+            reload: () => {
+                panorama.src = PANORAMA_URL + '?t=' + Date.now();
+                console.log('Перезагружено');
+            }
+        };
+    </script>
+</body>
+</html>
